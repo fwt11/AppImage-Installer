@@ -11,6 +11,12 @@ if [ $# -ne 1 ]; then
 fi
 
 APPIMAGE_PATH="$1"
+
+# 将相对路径转换为绝对路径
+if [[ "$APPIMAGE_PATH" != /* ]]; then
+    APPIMAGE_PATH="$(realpath "$APPIMAGE_PATH")"
+fi
+
 if [ ! -f "$APPIMAGE_PATH" ]; then
     echo "错误: 文件 '$APPIMAGE_PATH' 不存在"
     exit 1
