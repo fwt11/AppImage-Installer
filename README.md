@@ -12,6 +12,7 @@ A simple shell script to install and manage AppImage applications on Linux syste
 
 ## Usage
 
+### Installation
 ```bash
 # Basic user installation
 ./install-appimage.sh path/to/your-app.AppImage
@@ -26,14 +27,30 @@ A simple shell script to install and manage AppImage applications on Linux syste
 ./install-appimage.sh path/to/your-app.AppImage --system --no-sandbox
 ```
 
+### Uninstallation
+```bash
+# List all installed applications for selection
+./install-appimage.sh
+
+# List applications matching filter for selection
+./install-appimage.sh filter-string
+```
+
 ## What it does
 
+### Installation
 1. **Extracts** the AppImage contents to a temporary directory
 2. **Identifies** the correct icon and desktop file
 3. **Creates** a clean directory under `~/Applications/` (user) or `/opt/Applications/` (system) using the application name
 4. **Moves** the AppImage, icon, and desktop file to the new directory
 5. **Updates** paths in the desktop file to point to the correct locations (optionally adds --no-sandbox parameter)
 6. **Installs** the desktop file to `~/.local/share/applications/` (user) or `/usr/share/applications/` (system) for system integration
+
+### Uninstallation
+1. **Scans** both user (`~/Applications/`) and system (`/opt/Applications/`) installation directories
+2. **Displays** interactive list of installed applications (supports filtering)
+3. **Removes** application directory and associated desktop files
+4. **Updates** desktop database to remove application entries
 
 ## Directory Structure
 

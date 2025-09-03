@@ -1,33 +1,194 @@
 #!/bin/bash
 
-# AppImage安装脚本
-# 使用方法: ./install-appimage.sh <AppImage文件> [--system] [--no-sandbox]
+# AppImage安装和管理脚本
+# 安装用法: ./install-appimage.sh <AppImage文件> [--system] [--no-sandbox]
+# 卸载用法: ./install-appimage.sh [过滤字符串]
 
 set -e
 
-if [ $# -lt 1 ] || [ $# -gt 3 ]; then
-    echo "使用方法: $0 <AppImage文件> [--system] [--no-sandbox]"
+# 函数定义
+show_installed_apps() {
+    local filter="$1"
+    local apps=()
+    local i=1
+    
+    echo "已安装的AppImage应用:"
+    echo "================================"
+    
+    # 查找用户安装的应用
+    if [ -d "$HOME/Applications" ]; then
+        for app_dir in "$HOME/Applications"/*/; do
+            if [ -d "$app_dir" ]; then
+                local app_name=$(basename "$app_dir")
+                if [ -z "$filter" ] || [[ "$app_name" =~ $filter ]]; then
+                    apps+=("USER:$app_name:$app_dir")
+                fi
+            fi
+        done
+    fi
+    
+    # 查找系统安装的应用
+    if [ -d "/opt/Applications" ]; then
+        for app_dir in "/opt/Applications"/*/; do
+            if [ -d "$app_dir" ]; then
+                local app_name=$(basename "$app_dir")
+                if [ -z "$filter" ] || [[ "$app_name" =~ $filter ]]; then
+                    apps+=("SYSTEM:$app_name:$app_dir")
+                fi
+            fi
+        done
+    fi
+    
+    if [ ${#apps[@]} -eq 0 ]; then
+        if [ -n "$filter" ]; then
+            echo "未找到匹配 '$filter' 的应用"
+        else
+            echo "未找到已安装的应用"
+        fi
+        exit 0
+    fi
+    
+    # 显示应用列表
+    for app_info in "${apps[@]}"; do
+        IFS=':' read -r type app_name app_dir <<< "$app_info"
+        echo "$i. [$type] $app_name - $app_dir"
+        ((i++))
+    done
+    
+    echo "================================"
+    echo "0. 退出"
+    echo -n "请选择要卸载的应用编号: "
+    read -r choice
+    
+    if [[ ! "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 0 ] || [ "$choice" -gt ${#apps[@]} ]; then
+        echo "无效的选择"
+        exit 1
+    fi
+    
+    if [ "$choice" -eq 0 ]; then
+        echo "已取消"
+        exit 0
+    fi
+    
+    # 获取选择的应用信息
+    local selected_info="${apps[$((choice-1))]}"
+    IFS=':' read -r type app_name app_dir <<< "$selected_info"
+    
+    echo ""
+    echo "即将卸载: $app_name"
+    echo "位置: $app_dir"
+    echo "类型: $type"
+    echo -n "确认卸载？(y/N): "
+    read -r confirm
+    
+    if [[ "$confirm" != [yY] ]]; then
+        echo "已取消卸载"
+        exit 0
+    fi
+    
+    # 执行卸载
+    uninstall_app "$type" "$app_name" "$app_dir"
+}
+
+uninstall_app() {
+    local type="$1"
+    local app_name="$2"
+    local app_dir="$3"
+    
+    echo "正在卸载 $app_name..."
+    
+    # 删除应用目录
+    if [ "$type" = "USER" ]; then
+        rm -rf "$app_dir"
+        echo "已删除应用目录: $app_dir"
+    else
+        sudo rm -rf "$app_dir"
+        echo "已删除应用目录: $app_dir"
+    fi
+    
+    # 删除desktop文件
+    if [ "$type" = "USER" ]; then
+        local desktop_file="$HOME/.local/share/applications/$app_name.desktop"
+        if [ -f "$desktop_file" ]; then
+            rm -f "$desktop_file"
+            echo "已删除desktop文件: $desktop_file"
+            # 更新desktop数据库
+            if command -v update-desktop-database >/dev/null 2>&1; then
+                update-desktop-database "$HOME/.local/share/applications"
+            fi
+        fi
+    else
+        local desktop_file="/usr/share/applications/$app_name.desktop"
+        if [ -f "$desktop_file" ]; then
+            sudo rm -f "$desktop_file"
+            echo "已删除desktop文件: $desktop_file"
+            # 更新desktop数据库
+            if command -v update-desktop-database >/dev/null 2>&1; then
+                sudo update-desktop-database "/usr/share/applications"
+            fi
+        fi
+    fi
+    
+    echo "$app_name 卸载完成！"
+}
+
+# 检查参数数量决定模式
+if [ $# -eq 0 ]; then
+    # 无参数：卸载模式，显示所有应用
+    show_installed_apps ""
+    exit 0
+elif [ $# -eq 1 ] && [[ "$1" != --* ]]; then
+    # 单个非选项参数：可能是过滤字符串或文件路径
+    if [ -f "$1" ] && [[ "$1" =~ \.AppImage$ ]]; then
+        # 是AppImage文件：安装模式
+        install_mode=true
+        APPIMAGE_PATH="$1"
+        SYSTEM_INSTALL=false
+        NO_SANDBOX=false
+    else
+        # 是过滤字符串：卸载模式
+        show_installed_apps "$1"
+        exit 0
+    fi
+elif [ $# -ge 1 ] && [ $# -le 3 ]; then
+    # 带参数：安装模式
+    install_mode=true
+    
+    # 检查是否为系统安装
+    SYSTEM_INSTALL=false
+    NO_SANDBOX=false
+    
+    for arg in "$@"; do
+        case "$arg" in
+            --system)
+                SYSTEM_INSTALL=true
+                ;;
+            --no-sandbox)
+                NO_SANDBOX=true
+                ;;
+        esac
+    done
+    
+    # 第一个非选项参数应该是AppImage文件
+    for arg in "$@"; do
+        if [[ "$arg" != --* ]] && [ -f "$arg" ] && [[ "$arg" =~ \.AppImage$ ]]; then
+            APPIMAGE_PATH="$arg"
+            break
+        fi
+    done
+    
+    if [ -z "$APPIMAGE_PATH" ]; then
+        echo "错误: 未找到有效的AppImage文件"
+        exit 1
+    fi
+else
+    echo "使用方法:"
+    echo "  安装: $0 <AppImage文件> [--system] [--no-sandbox]"
+    echo "  卸载: $0 [过滤字符串]"
     echo "  --system: 安装到系统目录 (/opt/Applications)"
     echo "  --no-sandbox: 在启动时添加--no-sandbox参数"
     exit 1
 fi
-
-# 检查是否为系统安装
-SYSTEM_INSTALL=false
-NO_SANDBOX=false
-
-for arg in "$@"; do
-    case "$arg" in
-        --system)
-            SYSTEM_INSTALL=true
-            ;;
-        --no-sandbox)
-            NO_SANDBOX=true
-            ;;
-    esac
-done
-
-APPIMAGE_PATH="$1"
 
 # 将相对路径转换为绝对路径
 if [[ "$APPIMAGE_PATH" != /* ]]; then
@@ -186,3 +347,5 @@ rm -rf "$TEMP_DIR"
 echo "安装完成！"
 echo "AppImage已安装到: $TARGET_DIR"
 echo "应用程序可在应用菜单中找到"
+
+exit 0
