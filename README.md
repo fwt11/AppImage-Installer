@@ -13,24 +13,52 @@ A simple shell script to install and manage AppImage applications on Linux syste
 ## Usage
 
 ```bash
+# Basic user installation
 ./install-appimage.sh path/to/your-app.AppImage
+
+# System-wide installation (requires sudo)
+./install-appimage.sh path/to/your-app.AppImage --system
+
+# Install with --no-sandbox parameter
+./install-appimage.sh path/to/your-app.AppImage --no-sandbox
+
+# System installation with --no-sandbox
+./install-appimage.sh path/to/your-app.AppImage --system --no-sandbox
 ```
 
 ## What it does
 
 1. **Extracts** the AppImage contents to a temporary directory
 2. **Identifies** the correct icon and desktop file
-3. **Creates** a clean directory under `~/Applications/` using the application name
+3. **Creates** a clean directory under `~/Applications/` (user) or `/opt/Applications/` (system) using the application name
 4. **Moves** the AppImage, icon, and desktop file to the new directory
-5. **Updates** paths in the desktop file to point to the correct locations
-6. **Installs** the desktop file to `~/.local/share/applications/` for system integration
+5. **Updates** paths in the desktop file to point to the correct locations (optionally adds --no-sandbox parameter)
+6. **Installs** the desktop file to `~/.local/share/applications/` (user) or `/usr/share/applications/` (system) for system integration
 
 ## Directory Structure
 
 After installation, your applications will be organized like:
 
+**User Installation:**
 ```
 ~/Applications/
+├── Cursor/
+│   ├── Cursor.AppImage
+│   ├── Cursor.png
+│   └── Cursor.desktop
+├── VSCode/
+│   ├── VSCode.AppImage
+│   ├── VSCode.png
+│   └── VSCode.desktop
+└── Firefox/
+    ├── Firefox.AppImage
+    ├── Firefox.png
+    └── Firefox.desktop
+```
+
+**System Installation:**
+```
+/opt/Applications/
 ├── Cursor/
 │   ├── Cursor.AppImage
 │   ├── Cursor.png
@@ -60,11 +88,17 @@ After installation, your applications will be organized like:
 ## Examples
 
 ```bash
-# Install Cursor IDE
+# Install Cursor IDE (user installation)
 ./install-appimage.sh Cursor-0.45.1-x86_64.AppImage
 
-# Install VS Code
-./install-appimage.sh code-1.95.0-1729604362.el7.AppImage
+# Install VS Code (system-wide)
+./install-appimage.sh code-1.95.0-1729604362.el7.AppImage --system
+
+# Install with --no-sandbox parameter
+./install-appimage.sh app.AppImage --no-sandbox
+
+# System installation with sandbox disabled
+./install-appimage.sh app.AppImage --system --no-sandbox
 ```
 
 The script will automatically:
