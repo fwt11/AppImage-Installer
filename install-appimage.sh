@@ -2,7 +2,7 @@
 
 # AppImage安装和管理脚本
 # 安装用法: ./install-appimage.sh <AppImage文件> [--system] [--no-sandbox]
-# 卸载用法: ./install-appimage.sh [过滤字符串]
+# 卸载用法: ./install-appimage.sh --uninstall [过滤字符串]
 
 set -e
 
@@ -132,61 +132,82 @@ uninstall_app() {
     echo "$app_name 卸载完成！"
 }
 
+show_help() {
+    echo "AppImage 安装和管理脚本"
+    echo ""
+    echo "安装用法:"
+    echo "  $0 <AppImage文件> [--system] [--no-sandbox]"
+    echo ""
+    echo "卸载用法:"
+    echo "  $0 --uninstall [过滤字符串]"
+    echo ""
+    echo "选项:"
+    echo "  --system          安装到系统目录 (/opt/Applications)"
+    echo "  --no-sandbox      在启动时添加--no-sandbox参数"
+    echo "  --uninstall       进入卸载模式，显示已安装应用列表"
+    echo "  --help, -h        显示此帮助信息"
+    echo ""
+    echo "示例:"
+    echo "  安装用户应用:      $0 app.AppImage"
+    echo "  安装系统应用:      $0 app.AppImage --system"
+    echo "  带沙盒禁用安装:    $0 app.AppImage --no-sandbox"
+    echo "  列出所有应用卸载:  $0 --uninstall"
+    echo "  卸载特定应用:      $0 --uninstall chrome"
+}
+
 # 检查参数数量决定模式
-if [ $# -eq 0 ]; then
-    # 无参数：卸载模式，显示所有应用
-    show_installed_apps ""
+UNINSTALL_MODE=false
+FILTER=""
+SYSTEM_INSTALL=false
+NO_SANDBOX=false
+APPIMAGE_PATH=""
+
+# 解析命令行参数
+for arg in "$@"; do
+    case "$arg" in
+        --uninstall)
+            UNINSTALL_MODE=true
+            ;;
+        --system)
+            SYSTEM_INSTALL=true
+            ;;
+        --no-sandbox)
+            NO_SANDBOX=true
+            ;;
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        -*)
+            echo "错误: 未知选项 $arg"
+            show_help
+            exit 1
+            ;;
+        *)
+            if [ -z "$APPIMAGE_PATH" ] && [ -f "$arg" ] && [[ "$arg" =~ \.AppImage$ ]]; then
+                APPIMAGE_PATH="$arg"
+            elif [ "$UNINSTALL_MODE" = true ]; then
+                FILTER="$arg"
+            else
+                echo "错误: 未知参数 $arg"
+                show_help
+                exit 1
+            fi
+            ;;
+    esac
+done
+
+# 确定运行模式
+if [ "$UNINSTALL_MODE" = true ]; then
+    # 卸载模式
+    show_installed_apps "$FILTER"
     exit 0
-elif [ $# -eq 1 ] && [[ "$1" != --* ]]; then
-    # 单个非选项参数：可能是过滤字符串或文件路径
-    if [ -f "$1" ] && [[ "$1" =~ \.AppImage$ ]]; then
-        # 是AppImage文件：安装模式
-        install_mode=true
-        APPIMAGE_PATH="$1"
-        SYSTEM_INSTALL=false
-        NO_SANDBOX=false
-    else
-        # 是过滤字符串：卸载模式
-        show_installed_apps "$1"
-        exit 0
-    fi
-elif [ $# -ge 1 ] && [ $# -le 3 ]; then
-    # 带参数：安装模式
+elif [ -n "$APPIMAGE_PATH" ]; then
+    # 安装模式
     install_mode=true
-    
-    # 检查是否为系统安装
-    SYSTEM_INSTALL=false
-    NO_SANDBOX=false
-    
-    for arg in "$@"; do
-        case "$arg" in
-            --system)
-                SYSTEM_INSTALL=true
-                ;;
-            --no-sandbox)
-                NO_SANDBOX=true
-                ;;
-        esac
-    done
-    
-    # 第一个非选项参数应该是AppImage文件
-    for arg in "$@"; do
-        if [[ "$arg" != --* ]] && [ -f "$arg" ] && [[ "$arg" =~ \.AppImage$ ]]; then
-            APPIMAGE_PATH="$arg"
-            break
-        fi
-    done
-    
-    if [ -z "$APPIMAGE_PATH" ]; then
-        echo "错误: 未找到有效的AppImage文件"
-        exit 1
-    fi
 else
-    echo "使用方法:"
-    echo "  安装: $0 <AppImage文件> [--system] [--no-sandbox]"
-    echo "  卸载: $0 [过滤字符串]"
-    echo "  --system: 安装到系统目录 (/opt/Applications)"
-    echo "  --no-sandbox: 在启动时添加--no-sandbox参数"
+    echo "错误: 需要指定AppImage文件或使用--uninstall选项"
+    show_help
     exit 1
 fi
 

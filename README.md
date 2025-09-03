@@ -30,10 +30,16 @@ A simple shell script to install and manage AppImage applications on Linux syste
 ### Uninstallation
 ```bash
 # List all installed applications for selection
-./install-appimage.sh
+./install-appimage.sh --uninstall
 
 # List applications matching filter for selection
-./install-appimage.sh filter-string
+./install-appimage.sh --uninstall filter-string
+```
+
+### Help
+```bash
+# Display help information
+./install-appimage.sh --help
 ```
 
 ## What it does
