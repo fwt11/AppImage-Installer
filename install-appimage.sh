@@ -5,7 +5,6 @@
 # 卸载用法: ./install-appimage.sh --uninstall [过滤字符串]
 
 set -e
-set -x
 
 # 函数定义
 show_installed_apps() {
@@ -137,7 +136,7 @@ show_help() {
     echo "AppImage 安装和管理脚本"
     echo ""
     echo "安装用法:"
-    echo "  $0 <AppImage文件> [--system] [--no-sandbox]"
+    echo "  $0 <AppImage文件> [--system] [--no-sandbox] [--verbose]"
     echo ""
     echo "卸载用法:"
     echo "  $0 --uninstall [过滤字符串]"
@@ -146,14 +145,22 @@ show_help() {
     echo "  --system          安装到系统目录 (/opt/Applications)"
     echo "  --no-sandbox      在启动时添加--no-sandbox参数"
     echo "  --uninstall       进入卸载模式，显示已安装应用列表"
+    echo "  --verbose, -v     显示详细的安装过程信息"
     echo "  --help, -h        显示此帮助信息"
     echo ""
     echo "示例:"
     echo "  安装用户应用:      $0 app.AppImage"
     echo "  安装系统应用:      $0 app.AppImage --system"
     echo "  带沙盒禁用安装:    $0 app.AppImage --no-sandbox"
+    echo "  详细模式安装:      $0 app.AppImage --verbose"
     echo "  列出所有应用卸载:  $0 --uninstall"
     echo "  卸载特定应用:      $0 --uninstall chrome"
+}
+
+verbose_log() {
+    if [ "$VERBOSE" = true ]; then
+        echo "[DEBUG] $1"
+    fi
 }
 
 # 检查参数数量决定模式
@@ -161,6 +168,7 @@ UNINSTALL_MODE=false
 FILTER=""
 SYSTEM_INSTALL=false
 NO_SANDBOX=false
+VERBOSE=false
 APPIMAGE_PATH=""
 
 # 解析命令行参数
@@ -174,6 +182,9 @@ for arg in "$@"; do
             ;;
         --no-sandbox)
             NO_SANDBOX=true
+            ;;
+        --verbose|-v)
+            VERBOSE=true
             ;;
         --help|-h)
             show_help
@@ -215,13 +226,16 @@ fi
 # 将相对路径转换为绝对路径
 if [[ "$APPIMAGE_PATH" != /* ]]; then
     APPIMAGE_PATH="$(realpath "$APPIMAGE_PATH")"
+    verbose_log "转换为绝对路径: $APPIMAGE_PATH"
 fi
 
+verbose_log "检查文件是否存在: $APPIMAGE_PATH"
 if [ ! -f "$APPIMAGE_PATH" ]; then
     echo "错误: 文件 '$APPIMAGE_PATH' 不存在"
     exit 1
 fi
 
+verbose_log "检查文件扩展名: $APPIMAGE_PATH"
 if [[ ! "$APPIMAGE_PATH" =~ \.AppImage$ ]]; then
     echo "错误: 文件必须以.AppImage结尾"
     exit 1
@@ -229,6 +243,7 @@ fi
 
 # 确保AppImage文件有可执行权限
 echo "正在设置可执行权限..."
+verbose_log "为文件设置可执行权限: $APPIMAGE_PATH"
 if ! chmod +x "$APPIMAGE_PATH"; then
     echo "错误: 无法为AppImage文件设置可执行权限"
     exit 1
@@ -236,45 +251,62 @@ fi
 
 # 获取文件名和目录名
 FULL_BASENAME=$(basename "$APPIMAGE_PATH" .AppImage)
+verbose_log "完整文件名: $FULL_BASENAME"
 
 # 提取纯净软件名（移除版本号和架构信息）
-PURE_NAME=$(echo "$FULL_BASENAME" | sed -E 's/[-_]([0-9]+(\.[0-9]+)+.*$|[aA]md64|[xX]86_64|[iI]686|[aA]arch64|[aA]rm64|[uU]niversal|[lL]inux)//g' | sed -E 's/[-_][0-9].*$//')
+PURE_NAME=$(echo "$FULL_BASENAME" | sed -E 's/[-_]([0-9]+(\.[0-9]+)+.*$|[aA]md64|[xX]86_64|[iI]686|[aA]arch64|[aA]arm64|[uU]niversal|[lL]inux)//g' | sed -E 's/[-_][0-9].*$//')
+verbose_log "提取的应用名称: $PURE_NAME"
 
 # 确保名称不为空
 if [ -z "$PURE_NAME" ]; then
     PURE_NAME="$FULL_BASENAME"
+    verbose_log "名称为空，使用完整文件名: $PURE_NAME"
 fi
 
 # 设置目标目录
 if [ "$SYSTEM_INSTALL" = true ]; then
     TARGET_DIR="/opt/Applications/$PURE_NAME"
+    verbose_log "系统安装目录: $TARGET_DIR"
 else
     TARGET_DIR="$HOME/Applications/$PURE_NAME"
+    verbose_log "用户安装目录: $TARGET_DIR"
 fi
 TEMP_DIR=$(mktemp -d)
+verbose_log "临时目录: $TEMP_DIR"
 
 echo "正在处理: $PURE_NAME"
 
 # 创建目标目录
+verbose_log "创建目标目录: $TARGET_DIR"
 if [ "$SYSTEM_INSTALL" = true ]; then
+    verbose_log "系统安装模式，检查sudo权限"
     if command -v sudo >/dev/null 2>&1; then
+        verbose_log "使用sudo创建目录: $TARGET_DIR"
         sudo mkdir -p "$TARGET_DIR"
     else
         echo "错误: 需要sudo权限来创建系统目录 $TARGET_DIR"
         exit 1
     fi
 else
+    verbose_log "用户安装模式，创建目录: $TARGET_DIR"
     mkdir -p "$TARGET_DIR"
 fi
 
 # 解压AppImage
 echo "正在解压AppImage..."
+verbose_log "进入临时目录: $TEMP_DIR"
 cd "$TEMP_DIR"
+verbose_log "执行AppImage解压: $APPIMAGE_PATH --appimage-extract"
 "$APPIMAGE_PATH" --appimage-extract >/dev/null 2>&1
 
 # 查找图标和desktop文件
+verbose_log "搜索desktop文件..."
 DESKTOP_FILE=$(find squashfs-root -name "*.desktop" | head -n 1)
+verbose_log "找到desktop文件: $DESKTOP_FILE"
+
+verbose_log "搜索图标文件..."
 ICON_FILE=$(find squashfs-root -type f \( -name "*.png" -o -name "*.svg" -o -name "*.xpm" \) | grep -i icon | head -n 1)
+verbose_log "找到图标文件: $ICON_FILE"
 
 if [ -z "$DESKTOP_FILE" ]; then
     echo "警告: 未找到desktop文件"

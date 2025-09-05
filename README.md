@@ -9,6 +9,9 @@ A simple shell script to install and manage AppImage applications on Linux syste
 - **Desktop Integration**: Properly installs `.desktop` files for system integration
 - **Smart Naming**: Automatically sanitizes application names by removing version numbers and architecture identifiers
 - **User-Friendly**: Simple one-command installation process
+- **Verbose Mode**: Detailed logging for debugging and troubleshooting (`--verbose` or `-v`)
+- **Interactive Uninstall**: Easy application removal with filtering support
+- **Sandbox Control**: Optional `--no-sandbox` parameter for applications that require it
 
 ## Usage
 
@@ -22,6 +25,9 @@ A simple shell script to install and manage AppImage applications on Linux syste
 
 # Install with --no-sandbox parameter
 ./install-appimage.sh path/to/your-app.AppImage --no-sandbox
+
+# Verbose mode for debugging
+./install-appimage.sh path/to/your-app.AppImage --verbose
 
 # System installation with --no-sandbox
 ./install-appimage.sh path/to/your-app.AppImage --system --no-sandbox
@@ -120,8 +126,17 @@ After installation, your applications will be organized like:
 # Install with --no-sandbox parameter
 ./install-appimage.sh app.AppImage --no-sandbox
 
+# Install with verbose logging for debugging
+./install-appimage.sh app.AppImage --verbose
+
 # System installation with sandbox disabled
 ./install-appimage.sh app.AppImage --system --no-sandbox
+
+# Uninstall specific application
+./install-appimage.sh --uninstall chrome
+
+# List all installed applications
+./install-appimage.sh --uninstall
 ```
 
 The script will automatically:
