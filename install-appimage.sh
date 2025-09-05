@@ -5,6 +5,7 @@
 # 卸载用法: ./install-appimage.sh --uninstall [过滤字符串]
 
 set -e
+set -x
 
 # 函数定义
 show_installed_apps() {
@@ -223,6 +224,13 @@ fi
 
 if [[ ! "$APPIMAGE_PATH" =~ \.AppImage$ ]]; then
     echo "错误: 文件必须以.AppImage结尾"
+    exit 1
+fi
+
+# 确保AppImage文件有可执行权限
+echo "正在设置可执行权限..."
+if ! chmod +x "$APPIMAGE_PATH"; then
+    echo "错误: 无法为AppImage文件设置可执行权限"
     exit 1
 fi
 
