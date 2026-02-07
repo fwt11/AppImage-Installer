@@ -3,6 +3,7 @@
 # AppImage安装和管理脚本
 # 安装用法: ./install-appimage.sh <AppImage文件> [--system] [--no-sandbox]
 # 卸载用法: ./install-appimage.sh --uninstall [过滤字符串]
+# 注意: AppImage 文件后缀支持大小写不敏感（.AppImage、.appimage、.APPIMAGE 等）
 
 set -e
 
@@ -148,6 +149,9 @@ show_help() {
     echo "  --verbose, -v     显示详细的安装过程信息"
     echo "  --help, -h        显示此帮助信息"
     echo ""
+    echo "说明:"
+    echo "  AppImage 文件后缀支持大小写不敏感（.AppImage、.appimage、.APPIMAGE 等）"
+    echo ""
     echo "示例:"
     echo "  安装用户应用:      $0 app.AppImage"
     echo "  安装系统应用:      $0 app.AppImage --system"
@@ -196,7 +200,7 @@ for arg in "$@"; do
             exit 1
             ;;
         *)
-            if [ -z "$APPIMAGE_PATH" ] && [ -f "$arg" ] && [[ "$arg" =~ \.AppImage$ ]]; then
+            if [ -z "$APPIMAGE_PATH" ] && [ -f "$arg" ] && [[ "$(basename "$arg" | tr '[:upper:]' '[:lower:]')" =~ \.appimage$ ]]; then
                 APPIMAGE_PATH="$arg"
             elif [ "$UNINSTALL_MODE" = true ]; then
                 FILTER="$arg"
@@ -236,8 +240,8 @@ if [ ! -f "$APPIMAGE_PATH" ]; then
 fi
 
 verbose_log "检查文件扩展名: $APPIMAGE_PATH"
-if [[ ! "$APPIMAGE_PATH" =~ \.AppImage$ ]]; then
-    echo "错误: 文件必须以.AppImage结尾"
+if [[ ! "$(basename "$APPIMAGE_PATH" | tr '[:upper:]' '[:lower:]')" =~ \.appimage$ ]]; then
+    echo "错误: 文件必须以.AppImage结尾（大小写不敏感）"
     exit 1
 fi
 
@@ -250,7 +254,7 @@ if ! chmod +x "$APPIMAGE_PATH"; then
 fi
 
 # 获取文件名和目录名
-FULL_BASENAME=$(basename "$APPIMAGE_PATH" .AppImage)
+FULL_BASENAME=$(basename "$APPIMAGE_PATH" | sed 's/\.[Aa][Pp][Pp][Ii][Mm][Aa][Gg][Ee]$//')
 verbose_log "完整文件名: $FULL_BASENAME"
 
 # 提取纯净软件名（移除版本号和架构信息）
