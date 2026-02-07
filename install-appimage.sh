@@ -253,18 +253,56 @@ if ! chmod +x "$APPIMAGE_PATH"; then
     exit 1
 fi
 
-# 获取文件名和目录名
-FULL_BASENAME=$(basename "$APPIMAGE_PATH" | sed 's/\.[Aa][Pp][Pp][Ii][Mm][Aa][Gg][Ee]$//')
-verbose_log "完整文件名: $FULL_BASENAME"
+# 创建临时目录用于解压
+TEMP_DIR=$(mktemp -d)
+verbose_log "临时目录: $TEMP_DIR"
 
-# 提取纯净软件名（移除版本号和架构信息）
-PURE_NAME=$(echo "$FULL_BASENAME" | sed -E 's/[-_]([0-9]+(\.[0-9]+)+.*$|[aA]md64|[xX]86_64|[iI]686|[aA]arch64|[aA]arm64|[uU]niversal|[lL]inux)//g' | sed -E 's/[-_][0-9].*$//')
-verbose_log "提取的应用名称: $PURE_NAME"
+# 解压AppImage以提取真实应用信息
+echo "正在分析AppImage..."
+verbose_log "进入临时目录: $TEMP_DIR"
+cd "$TEMP_DIR"
+verbose_log "执行AppImage解压: $APPIMAGE_PATH --appimage-extract"
+"$APPIMAGE_PATH" --appimage-extract >/dev/null 2>&1
+
+# 查找desktop文件并从中提取真实应用名称
+verbose_log "搜索desktop文件..."
+DESKTOP_FILE=$(find squashfs-root -name "*.desktop" | head -n 1)
+verbose_log "找到desktop文件: $DESKTOP_FILE"
+
+PURE_NAME=""
+
+if [ -n "$DESKTOP_FILE" ]; then
+    verbose_log "从desktop文件中提取应用名称..."
+    # 尝试从Name字段提取应用名称
+    PURE_NAME=$(grep -E "^Name=" "$DESKTOP_FILE" | head -n 1 | sed 's/^Name=//')
+    
+    # 如果没有Name字段，尝试GenericName
+    if [ -z "$PURE_NAME" ]; then
+        PURE_NAME=$(grep -E "^GenericName=" "$DESKTOP_FILE" | head -n 1 | sed 's/^GenericName=//')
+    fi
+    
+    # 清理名称：移除空格、特殊字符，保留字母数字和连字符
+    if [ -n "$PURE_NAME" ]; then
+        PURE_NAME=$(echo "$PURE_NAME" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]/-/g' | sed -E 's/-+/-/g' | sed -E 's/^-|-$//g')
+        verbose_log "从desktop文件提取的应用名称: $PURE_NAME"
+    fi
+fi
+
+# 如果无法从desktop文件提取，尝试从文件名提取（降级方案）
+if [ -z "$PURE_NAME" ]; then
+    verbose_log "无法从desktop文件提取，使用原始文件名..."
+    FULL_BASENAME=$(basename "$APPIMAGE_PATH" | sed 's/\.[Aa][Pp][Pp][Ii][Mm][Aa][Gg][Ee]$//')
+    verbose_log "完整文件名: $FULL_BASENAME"
+    
+    # 提取纯净软件名（移除版本号和架构信息）
+    PURE_NAME=$(echo "$FULL_BASENAME" | sed -E 's/[-_]([0-9]+(\.[0-9]+)+.*$|[aA]md64|[xX]86_64|[iI]686|[aA]arch64|[aA]arm64|[uU]niversal|[lL]inux)//g' | sed -E 's/[-_][0-9].*$//' | tr '[:upper:]' '[:lower:]')
+    verbose_log "从文件名提取的应用名称: $PURE_NAME"
+fi
 
 # 确保名称不为空
 if [ -z "$PURE_NAME" ]; then
-    PURE_NAME="$FULL_BASENAME"
-    verbose_log "名称为空，使用完整文件名: $PURE_NAME"
+    PURE_NAME="appimage-app"
+    verbose_log "名称为空，使用默认名称: $PURE_NAME"
 fi
 
 # 设置目标目录
@@ -275,8 +313,6 @@ else
     TARGET_DIR="$HOME/Applications/$PURE_NAME"
     verbose_log "用户安装目录: $TARGET_DIR"
 fi
-TEMP_DIR=$(mktemp -d)
-verbose_log "临时目录: $TEMP_DIR"
 
 echo "正在处理: $PURE_NAME"
 
@@ -296,18 +332,7 @@ else
     mkdir -p "$TARGET_DIR"
 fi
 
-# 解压AppImage
-echo "正在解压AppImage..."
-verbose_log "进入临时目录: $TEMP_DIR"
-cd "$TEMP_DIR"
-verbose_log "执行AppImage解压: $APPIMAGE_PATH --appimage-extract"
-"$APPIMAGE_PATH" --appimage-extract >/dev/null 2>&1
-
-# 查找图标和desktop文件
-verbose_log "搜索desktop文件..."
-DESKTOP_FILE=$(find squashfs-root -name "*.desktop" | head -n 1)
-verbose_log "找到desktop文件: $DESKTOP_FILE"
-
+# 查找图标文件
 verbose_log "搜索图标文件..."
 ICON_FILE=$(find squashfs-root -type f \( -name "*.png" -o -name "*.svg" -o -name "*.xpm" \) | grep -i icon | head -n 1)
 verbose_log "找到图标文件: $ICON_FILE"
